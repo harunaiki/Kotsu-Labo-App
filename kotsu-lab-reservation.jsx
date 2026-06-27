@@ -4,7 +4,7 @@ import {
   Megaphone, Trash2, Copy, AlertCircle, ClipboardList, Stethoscope,
   Search, Phone, Mail, GitMerge, History, UserPlus, ChevronLeft, FileText,
   Database, Download, RotateCcw, Pencil,
-  LogIn, LogOut, QrCode, Lock, Eye, EyeOff, Share2, ShieldCheck, Link2, ChevronRight,
+  LogIn, LogOut, QrCode, Lock, Eye, EyeOff, Share2, ShieldCheck, Link2, ChevronRight, MapPin,
 } from 'lucide-react';
 
 /* ---------------------------------------------------------------------------
@@ -27,6 +27,8 @@ const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() 
 const fmtDate = (s) => { if (!s) return '—'; const [y, m, d] = s.split('-').map(Number); const dt = new Date(y, m - 1, d); return `${m}月${d}日(${WD[dt.getDay()]})`; };
 const uid = (p) => p + Math.random().toString(36).slice(2, 9);
 const byDateTime = (a, b) => (a.date === b.date ? toMin(a.start) - toMin(b.start) : a.date < b.date ? -1 : 1);
+const timeOverlap = (aS, aE, bS, bE) => toMin(aS) < toMin(bE) && toMin(bS) < toMin(aE);
+const practitionerConflict = (sessions, cand, excludeId) => sessions.find((s) => s.id !== excludeId && s.date === cand.date && (s.practitioner || '') !== '' && (s.practitioner || '') === (cand.practitioner || '') && timeOverlap(cand.start, cand.end, s.start, s.end)) || null;
 const safeParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 const copyText = async (t) => { try { await navigator.clipboard.writeText(t); return true; } catch { return false; } };
 const norm = (s) => (s || '').trim().toUpperCase();
@@ -71,14 +73,18 @@ function buildSeed() {
     { id: 'u6', type: 'b2c', code: 'C-8F3KQ', name: '中村 由美', companyId: null, empNo: '', dept: '', tel: '090-1234-5678', email: '', symptoms: '産後の腰の不調。月1回ペースでの来院を希望。', tags: ['腰痛'], followUpAt: D(7), followUpNote: '次回予約の確認連絡', followDone: false, createdAt: D(-120), mergedFrom: [], disclose: { symptoms: true, tags: true, treatment: true } },
     { id: 'u7', type: 'b2c', code: 'C-1X9ZM', name: '小林 大輔', companyId: null, empNo: '', dept: '', tel: '080-2222-3333', email: 'kobayashi@example.com', symptoms: 'デスクワーク中心。肩こりと頭痛が気になる。', tags: ['肩こり', '頭痛'], followUpAt: '', followUpNote: '', followDone: false, createdAt: D(-15), mergedFrom: [], disclose: { symptoms: true, tags: true, treatment: false } },
   ];
+  const practitioners = [
+    { id: 'pr1', name: '田中 健', license: '柔道整復師', baseLocation: '骨ラボ 大宮サロン' },
+    { id: 'pr2', name: '佐藤 美咲', license: '鍼灸師', baseLocation: '骨ラボ 大宮サロン' },
+  ];
   const sessions = [
-    { id: 'p1', companyId: 'c1', date: D(-7), start: '10:00', end: '12:00', practitioner: '田中 健' },
-    { id: 'p2', companyId: null, date: D(-10), start: '13:00', end: '15:00', practitioner: '佐藤 美咲' },
-    { id: 's1', companyId: 'c1', date: D(2), start: '10:00', end: '12:00', practitioner: '田中 健' },
-    { id: 's2', companyId: 'c2', date: D(3), start: '14:00', end: '16:00', practitioner: '田中 健' },
-    { id: 'sp1', companyId: null, date: D(4), start: '16:00', end: '18:00', practitioner: '佐藤 美咲' },
-    { id: 's3', companyId: 'c3', date: D(5), start: '09:00', end: '11:00', practitioner: '佐藤 美咲' },
-    { id: 's4', companyId: 'c1', date: D(9), start: '13:00', end: '15:00', practitioner: '田中 健' },
+    { id: 'p1', companyId: 'c1', date: D(-7), start: '10:00', end: '12:00', practitioner: '田中 健', location: '山田製作所 本社 会議室A' },
+    { id: 'p2', companyId: null, date: D(-10), start: '13:00', end: '15:00', practitioner: '佐藤 美咲', location: '骨ラボ 大宮サロン' },
+    { id: 's1', companyId: 'c1', date: D(2), start: '10:00', end: '12:00', practitioner: '田中 健', location: '山田製作所 本社 会議室A' },
+    { id: 's2', companyId: 'c2', date: D(3), start: '14:00', end: '16:00', practitioner: '田中 健', location: 'テックフロー 9F 休憩スペース' },
+    { id: 'sp1', companyId: null, date: D(4), start: '16:00', end: '18:00', practitioner: '佐藤 美咲', location: '骨ラボ 大宮サロン' },
+    { id: 's3', companyId: 'c3', date: D(5), start: '09:00', end: '11:00', practitioner: '佐藤 美咲', location: 'みなと物流 倉庫事務所 2F' },
+    { id: 's4', companyId: 'c1', date: D(9), start: '13:00', end: '15:00', practitioner: '田中 健', location: '山田製作所 本社 会議室A' },
   ];
   const now = new Date().toISOString();
   const R = (id, sessionId, slot, cu, note, treatment, done) => {
@@ -96,7 +102,7 @@ function buildSeed() {
     R('r8', 's2', '14:40', 'u5', '', '', false),
     R('r9', 'sp1', '16:00', 'u6', '定期メンテナンス', '', false),
   ];
-  return { companies, customers, sessions, reservations };
+  return { companies, customers, practitioners, sessions, reservations };
 }
 
 const ROLES = [
@@ -222,7 +228,7 @@ function BookingPanel({ me, companies, sessions, reservations, onBook, notify })
             <div className="kl-sess-h">
               <div>
                 <div className="kl-sess-date">{fmtDate(s.date)}</div>
-                <div className="kl-sess-meta"><span><Clock size={13} />{s.start}〜{s.end}</span><span><Stethoscope size={13} />{s.practitioner}</span></div>
+                <div className="kl-sess-meta"><span><Clock size={13} />{s.start}〜{s.end}</span><span><Stethoscope size={13} />{s.practitioner}</span>{s.location && <span><MapPin size={13} />{s.location}</span>}</div>
               </div>
               {open > 0 ? <span className="kl-badge green">空き {open}枠</span> : <span className="kl-badge full">満員</span>}
             </div>
@@ -248,6 +254,8 @@ function BookingPanel({ me, companies, sessions, reservations, onBook, notify })
           <div className="kl-info-row"><span className="k">日付</span><span className="v">{fmtDate(booking.session.date)}</span></div>
           <div className="kl-info-row"><span className="k">時間</span><span className="v kl-mono">{booking.slot}〜{toTime(toMin(booking.slot) + SLOT_MIN)}（20分）</span></div>
           <div className="kl-info-row"><span className="k">お名前</span><span className="v">{me.name}{me.type === 'b2b' && me.dept ? `（${me.dept}）` : ''}</span></div>
+          <div className="kl-info-row"><span className="k">担当</span><span className="v">{booking.session.practitioner}</span></div>
+          <div className="kl-info-row"><span className="k">施術場所</span><span className="v">{booking.session.location || '—'}</span></div>
           <div className="kl-field" style={{ marginTop: 14 }}>
             <label>気になる部位・症状（任意）</label>
             <textarea className="kl-area" value={note} onChange={(e) => setNote(e.target.value)} placeholder="例）右肩のこり、腰の張り など" />
@@ -273,7 +281,7 @@ function MyReservations({ me, companies, sessions, reservations, onCancel }) {
       {upcoming.length > 0 && <div className="kl-card"><div className="kl-roster">{upcoming.map((r) => (
         <div className="kl-rrow" key={r.id}>
           <div className="kl-rtime"><Calendar size={13} />{fmtDate(r.session.date)}</div>
-          <div className="kl-rwho"><div className="kl-rname kl-mono">{r.slot}〜{toTime(toMin(r.slot) + SLOT_MIN)}</div><div className="kl-rdept">{cName(r.session.companyId)}・{r.session.practitioner}</div></div>
+          <div className="kl-rwho"><div className="kl-rname kl-mono">{r.slot}〜{toTime(toMin(r.slot) + SLOT_MIN)}</div><div className="kl-rdept">{cName(r.session.companyId)}・{r.session.practitioner}</div>{r.session.location && <div className="kl-rnote"><MapPin size={12} /> {r.session.location}</div>}</div>
           {onCancel && <button className="kl-btn kl-btn-danger kl-btn-sm" onClick={() => setConfirm({ id: r.id, label: `${fmtDate(r.session.date)} ${r.slot}のご予約` })}><X size={14} />取消</button>}
         </div>
       ))}</div></div>}
@@ -510,7 +518,7 @@ function CorporatePortal({ company, customers, sessions, reservations, onLogout,
               return (
                 <div className="kl-sess" key={s.id}>
                   <div className="kl-sess-h">
-                    <div><div className="kl-sess-date">{fmtDate(s.date)}</div><div className="kl-sess-meta"><span><Clock size={13} />{s.start}〜{s.end}</span><span><Stethoscope size={13} />{s.practitioner}</span><span>{bk}/{slots.length}名</span></div></div>
+                    <div><div className="kl-sess-date">{fmtDate(s.date)}</div><div className="kl-sess-meta"><span><Clock size={13} />{s.start}〜{s.end}</span><span><Stethoscope size={13} />{s.practitioner}</span>{s.location && <span><MapPin size={13} />{s.location}</span>}<span>{bk}/{slots.length}名</span></div></div>
                     {op > 0 ? <button className="kl-btn kl-btn-amber kl-btn-sm" onClick={() => openCallout(s)}><Megaphone size={14} />空き枠を呼びかける</button> : <span className="kl-badge full">満員</span>}
                   </div>
                   <div className="kl-sess-b">
@@ -562,19 +570,27 @@ function CorporatePortal({ company, customers, sessions, reservations, onLogout,
 }
 
 /* ------------------------------ Provider view ----------------------------- */
-function SessionForm({ companies, onClose, onSubmit, notify }) {
+function SessionForm({ companies, practitioners, sessions, onClose, onSubmit, notify }) {
   const [companyId, setCompanyId] = useState(companies[0]?.id || SOLO);
   const [date, setDate] = useState('');
   const [start, setStart] = useState('10:00');
   const [end, setEnd] = useState('12:00');
-  const [practitioner, setPractitioner] = useState('');
+  const [practitioner, setPractitioner] = useState(practitioners[0]?.name || '');
+  const [location, setLocation] = useState('');
   const timesValid = start && end && toMin(end) > toMin(start);
-  const valid = date && timesValid && practitioner.trim();
+  const conflict = (date && timesValid && practitioner) ? practitionerConflict(sessions, { date, start, end, practitioner }, null) : null;
+  const valid = date && timesValid && practitioner.trim() && location.trim() && !conflict;
   const slotCount = timesValid ? slotsOf(start, end).length : 0;
+  const cName = (id) => (id ? (companies.find((c) => c.id === id)?.name || '—') : '個人向け');
+  const locSuggest = Array.from(new Set(sessions.map((s) => s.location).filter(Boolean)));
+  function submit() {
+    if (!valid) { notify(conflict ? '同じ施術者の予定が重複しています' : '入力内容をご確認ください'); return; }
+    onSubmit({ companyId: companyId === SOLO ? null : companyId, date, start, end, practitioner: practitioner.trim(), location: location.trim() });
+  }
   return (
     <Modal title="施術日を追加" onClose={onClose} footer={<>
       <button className="kl-btn kl-btn-ghost" onClick={onClose}>やめる</button>
-      <button className="kl-btn kl-btn-primary" disabled={!valid} onClick={() => valid ? onSubmit({ companyId: companyId === SOLO ? null : companyId, date, start, end, practitioner: practitioner.trim() }) : notify('入力内容をご確認ください')}><Check size={16} />追加する</button>
+      <button className="kl-btn kl-btn-primary" disabled={!valid} onClick={submit}><Check size={16} />追加する</button>
     </>}>
       <div className="kl-fields">
         <div className="kl-field"><label>対象</label><select className="kl-select" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
@@ -586,9 +602,18 @@ function SessionForm({ companies, onClose, onSubmit, notify }) {
           <div className="kl-field"><label>開始</label><input type="time" step="600" className="kl-input" value={start} onChange={(e) => setStart(e.target.value)} /></div>
           <div className="kl-field"><label>終了</label><input type="time" step="600" className="kl-input" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
         </div>
-        <div className="kl-field"><label>担当施術者</label><input className="kl-input" value={practitioner} onChange={(e) => setPractitioner(e.target.value)} placeholder="田中 健" /></div>
+        <div className="kl-field"><label>担当施術者</label>
+          {practitioners.length === 0
+            ? <div className="kl-hint"><AlertCircle size={16} /><span>施術者が登録されていません。「マスター管理 → 施術者」から登録してください。</span></div>
+            : <select className="kl-select" value={practitioner} onChange={(e) => setPractitioner(e.target.value)}>{practitioners.map((p) => <option key={p.id} value={p.name}>{p.name}{p.license ? `（${p.license}）` : ''}</option>)}</select>}
+        </div>
+        <div className="kl-field"><label>施術場所</label>
+          <input className="kl-input" list="kl-loc-list" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例）山田製作所 本社 会議室A" />
+          <datalist id="kl-loc-list">{locSuggest.map((l) => <option key={l} value={l} />)}</datalist>
+        </div>
         {slotCount > 0 && <div className="kl-hint hint-green"><ClipboardList size={16} /><span>20分 × <b>{slotCount}枠</b> が自動で作成されます。</span></div>}
         {start && end && toMin(end) <= toMin(start) && <div className="kl-hint"><AlertCircle size={16} /><span>終了時間は開始時間より後に設定してください。</span></div>}
+        {conflict && <div className="kl-hint hint-rose"><AlertCircle size={16} /><span><b>{practitioner}</b>さんは {fmtDate(conflict.date)} {conflict.start}〜{conflict.end}（{cName(conflict.companyId)}）に予定があり、時間が重複しています。別の施術者・時間に変更してください。</span></div>}
       </div>
     </Modal>
   );
@@ -612,7 +637,7 @@ function CompanyForm({ onClose, onSubmit }) {
   );
 }
 
-function ProviderView({ companies, customers, sessions, reservations, notify, onAddSession, onCancel, onDeleteSession, onAddCompany, onSetTreatment }) {
+function ProviderView({ companies, customers, practitioners, sessions, reservations, notify, onAddSession, onCancel, onDeleteSession, onAddCompany, onSetTreatment }) {
   const [showSession, setShowSession] = useState(false);
   const [showCompany, setShowCompany] = useState(false);
   const [confirm, setConfirm] = useState(null);
@@ -670,7 +695,7 @@ function ProviderView({ companies, customers, sessions, reservations, notify, on
                 <div className="kl-sess-h">
                   <div>
                     <div className="kl-sess-date">{cName(s.companyId)} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)' }}>{cInd(s.companyId)}</span></div>
-                    <div className="kl-sess-meta"><span><Clock size={13} />{s.start}〜{s.end}</span><span><Stethoscope size={13} />{s.practitioner}</span><span>{bk}/{slots.length}名</span></div>
+                    <div className="kl-sess-meta"><span><Clock size={13} />{s.start}〜{s.end}</span><span><Stethoscope size={13} />{s.practitioner}</span>{s.location && <span><MapPin size={13} />{s.location}</span>}<span>{bk}/{slots.length}名</span></div>
                   </div>
                   <button className="kl-x" title="この施術日を削除" onClick={() => setConfirm({ kind: 'sess', id: s.id, label: `${fmtDate(s.date)} ${cName(s.companyId)}の施術日` })}><Trash2 size={16} /></button>
                 </div>
@@ -707,7 +732,7 @@ function ProviderView({ companies, customers, sessions, reservations, notify, on
         </div>
       ))}
 
-      {showSession && <SessionForm companies={companies} notify={notify} onClose={() => setShowSession(false)} onSubmit={(d) => { onAddSession(d); setShowSession(false); }} />}
+      {showSession && <SessionForm companies={companies} practitioners={practitioners} sessions={sessions} notify={notify} onClose={() => setShowSession(false)} onSubmit={(d) => { onAddSession(d); setShowSession(false); }} />}
       {showCompany && <CompanyForm onClose={() => setShowCompany(false)} onSubmit={(d) => { onAddCompany(d); setShowCompany(false); }} />}
       {treat && <TreatmentModal res={treat.res} sessionLabel={treat.label} onClose={() => setTreat(null)} onSave={(id, tx, dn) => { onSetTreatment(id, tx, dn); setTreat(null); }} />}
 
@@ -982,7 +1007,7 @@ function CRMView({ companies, customers, sessions, reservations, onUpdateCustome
 }
 
 /* --------------------------- Data management ------------------------------ */
-const COL_LABELS = { code: 'コード', name: '名称', industry: '業種', type: '区分', company: '企業', date: '日付', time: '時間', practitioner: '担当', slot: '枠', status: '状態' };
+const COL_LABELS = { code: 'コード', name: '名称', industry: '業種', type: '区分', company: '企業', date: '日付', time: '時間', practitioner: '担当', location: '場所', license: '資格', slot: '枠', status: '状態' };
 
 const SCHEMAS = {
   companies: {
@@ -1017,16 +1042,27 @@ const SCHEMAS = {
       { k: 'disclose', label: 'お客様への開示', type: 'disclose' },
     ],
   },
+  practitioners: {
+    label: '施術者', icon: Stethoscope, idPrefix: 'pr',
+    cols: ['name', 'license', 'location'],
+    fields: [
+      { k: 'id', label: 'ID', type: 'readonly' },
+      { k: 'name', label: '氏名', type: 'text' },
+      { k: 'license', label: '保有資格', type: 'text' },
+      { k: 'baseLocation', label: '主な施術場所（任意）', type: 'text' },
+    ],
+  },
   sessions: {
     label: '施術日', icon: Calendar, idPrefix: 's',
-    cols: ['date', 'time', 'company', 'practitioner'],
+    cols: ['date', 'time', 'company', 'practitioner', 'location'],
     fields: [
       { k: 'id', label: 'ID', type: 'readonly' },
       { k: 'companyId', label: '対象企業', type: 'rel-company', nullable: true, nullLabel: '個人向け（一般枠）' },
       { k: 'date', label: '日付', type: 'date' },
       { k: 'start', label: '開始', type: 'time' },
       { k: 'end', label: '終了', type: 'time' },
-      { k: 'practitioner', label: '担当施術者', type: 'text' },
+      { k: 'practitioner', label: '担当施術者', type: 'practitioner' },
+      { k: 'location', label: '施術場所', type: 'text' },
     ],
   },
   reservations: {
@@ -1049,7 +1085,8 @@ const SCHEMAS = {
 function blankRecord(table, companies, sessions) {
   if (table === 'companies') return { code: '', name: '', industry: '' };
   if (table === 'customers') return { code: '', type: 'b2c', name: '', companyId: null, empNo: '', dept: '', tel: '', email: '', symptoms: '', tags: [], followUpAt: '', followUpNote: '', followDone: false, createdAt: localDate(), mergedFrom: [], disclose: { symptoms: true, tags: true, treatment: false } };
-  if (table === 'sessions') return { companyId: null, date: localDate(), start: '10:00', end: '12:00', practitioner: '' };
+  if (table === 'practitioners') return { name: '', license: '', baseLocation: '' };
+  if (table === 'sessions') return { companyId: null, date: localDate(), start: '10:00', end: '12:00', practitioner: '', location: '' };
   return { sessionId: sessions[0]?.id || '', slot: '10:00', customerId: null, name: '', dept: '', note: '', treatment: '', done: false, at: new Date().toISOString() };
 }
 
@@ -1062,7 +1099,7 @@ function RelSelect({ value, onChange, options, nullable, nullLabel }) {
   );
 }
 
-function RecordEditor({ table, record, isAdd, companies, customers, sessions, onClose, onSave }) {
+function RecordEditor({ table, record, isAdd, companies, customers, sessions, practitioners, onClose, onSave }) {
   const schema = SCHEMAS[table];
   const [form, setForm] = useState({ ...record });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1092,6 +1129,7 @@ function RecordEditor({ table, record, isAdd, companies, customers, sessions, on
           else if (f.type === 'select') ctrl = <select className="kl-select" value={form[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}>{f.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>;
           else if (f.type === 'tags') ctrl = <div className="kl-tags">{TAGS.map((t) => <button key={t} className={`kl-tag ${(form.tags || []).includes(t) ? 'is-on' : ''}`} onClick={() => toggleTag(t)}>{t}</button>)}</div>;
           else if (f.type === 'disclose') { const dv = form.disclose || { symptoms: false, tags: false, treatment: false }; ctrl = <div className="kl-tags">{[['symptoms', '主訴'], ['tags', 'タグ'], ['treatment', '施術記録']].map(([k, l]) => <button key={k} className={`kl-tag ${dv[k] ? 'is-on' : ''}`} onClick={() => set('disclose', { ...dv, [k]: !dv[k] })}>{dv[k] ? '◉' : '○'} {l}</button>)}</div>; }
+          else if (f.type === 'practitioner') ctrl = <select className="kl-select" value={form[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}><option value="">（未選択）</option>{(practitioners || []).map((p) => <option key={p.id} value={p.name}>{p.name}{p.license ? `（${p.license}）` : ''}</option>)}</select>;
           else if (f.type === 'rel-company') ctrl = <RelSelect value={form.companyId} onChange={(v) => set('companyId', v)} options={companyOpts} nullable={f.nullable} nullLabel={f.nullLabel} />;
           else if (f.type === 'rel-session') ctrl = <RelSelect value={form.sessionId} onChange={(v) => set('sessionId', v)} options={sessionOpts} nullable={f.nullable} nullLabel={f.nullLabel} />;
           else if (f.type === 'rel-customer') ctrl = <RelSelect value={form.customerId} onChange={(v) => set('customerId', v)} options={customerOpts} nullable={f.nullable} nullLabel={f.nullLabel} />;
@@ -1103,14 +1141,14 @@ function RecordEditor({ table, record, isAdd, companies, customers, sessions, on
   );
 }
 
-function DataView({ companies, customers, sessions, reservations, onUpdate, onDelete, onAdd, onReset, notify }) {
+function DataView({ companies, customers, practitioners, sessions, reservations, onUpdate, onDelete, onAdd, onReset, notify }) {
   const [table, setTable] = useState('companies');
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const data = { companies, customers, sessions, reservations };
+  const data = { companies, customers, practitioners, sessions, reservations };
   const rows = data[table];
   const schema = SCHEMAS[table];
   const cName = (id) => (id ? (companies.find((c) => c.id === id)?.name || '—') : '個人向け');
@@ -1127,6 +1165,8 @@ function DataView({ companies, customers, sessions, reservations, onUpdate, onDe
     if (col === 'date') return table === 'sessions' ? fmtDate(rec.date) : fmtDate(sessions.find((s) => s.id === rec.sessionId)?.date);
     if (col === 'time') return <span className="kl-mono">{rec.start}〜{rec.end}</span>;
     if (col === 'practitioner') return rec.practitioner;
+    if (col === 'license') return rec.license || '—';
+    if (col === 'location') return rec.location || rec.baseLocation || '—';
     if (col === 'slot') return <span className="kl-mono">{rec.slot}</span>;
     if (col === 'status') return rec.done ? <span className="kl-badge done"><Check size={12} />施術済み</span> : <span className="kl-badge todo">予定</span>;
     return null;
@@ -1145,6 +1185,7 @@ function DataView({ companies, customers, sessions, reservations, onUpdate, onDe
   const delMsg = {
     companies: 'この企業を削除します。ひも付くお客様・施術日の参照が外れる場合があります。よろしいですか？',
     customers: 'このお客様カルテを削除します。予約の参照が外れる場合があります。よろしいですか？',
+    practitioners: 'この施術者を削除します。既存の施術日の担当表示には影響しません。よろしいですか？',
     sessions: 'この施術日を削除すると、ひも付く予約もすべて削除されます。よろしいですか？',
     reservations: 'この予約を削除します。よろしいですか？',
   };
@@ -1195,7 +1236,7 @@ function DataView({ companies, customers, sessions, reservations, onUpdate, onDe
         <div style={{ fontSize: 11.5, color: 'var(--ink-soft)', marginTop: 10 }}>{filtered.length} / {rows.length} 件を表示 — 行をタップすると編集できます。</div>
       </div>
 
-      {editing && <RecordEditor table={table} record={editing.record} isAdd={editing.isAdd} companies={companies} customers={customers} sessions={sessions} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && <RecordEditor table={table} record={editing.record} isAdd={editing.isAdd} companies={companies} customers={customers} sessions={sessions} practitioners={practitioners} onClose={() => setEditing(null)} onSave={save} />}
 
       <Confirm open={!!confirmDel} danger confirmLabel="削除する"
         message={confirmDel ? `「${confirmDel.label}」を削除します。\n${delMsg[table]}` : ''}
@@ -1220,9 +1261,9 @@ function AdminPortal(p) {
           <button className={tab === 'karte' ? 'is-on' : ''} onClick={() => setTab('karte')}><ClipboardList size={14} />カルテ</button>
           <button className={tab === 'master' ? 'is-on' : ''} onClick={() => setTab('master')}><Database size={14} />マスター管理</button>
         </div>
-        {tab === 'schedule' && <ProviderView companies={p.companies} customers={p.customers} sessions={p.sessions} reservations={p.reservations} notify={p.notify} onAddSession={p.onAddSession} onCancel={p.onCancel} onDeleteSession={p.onDeleteSession} onAddCompany={p.onAddCompany} onSetTreatment={p.onSetTreatment} />}
+        {tab === 'schedule' && <ProviderView companies={p.companies} customers={p.customers} practitioners={p.practitioners} sessions={p.sessions} reservations={p.reservations} notify={p.notify} onAddSession={p.onAddSession} onCancel={p.onCancel} onDeleteSession={p.onDeleteSession} onAddCompany={p.onAddCompany} onSetTreatment={p.onSetTreatment} />}
         {tab === 'karte' && <CRMView companies={p.companies} customers={p.customers} sessions={p.sessions} reservations={p.reservations} onUpdateCustomer={p.onUpdateCustomer} onMergeCustomers={p.onMergeCustomers} onSetTreatment={p.onSetTreatment} onAddCustomer={p.onAddCustomer} notify={p.notify} />}
-        {tab === 'master' && <DataView companies={p.companies} customers={p.customers} sessions={p.sessions} reservations={p.reservations} onUpdate={p.dbUpdate} onDelete={p.dbDelete} onAdd={p.dbAdd} onReset={p.dbReset} notify={p.notify} />}
+        {tab === 'master' && <DataView companies={p.companies} customers={p.customers} practitioners={p.practitioners} sessions={p.sessions} reservations={p.reservations} onUpdate={p.dbUpdate} onDelete={p.dbDelete} onAdd={p.dbAdd} onReset={p.dbReset} notify={p.notify} />}
       </div></main>
     </div>
   );
@@ -1336,6 +1377,7 @@ export default function App() {
   const [session, setSession] = useState(null); // { portal, customerId?, companyId? }
   const [companies, setCompanies] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [practitioners, setPractitioners] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [ready, setReady] = useState(false);
@@ -1343,23 +1385,26 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const cR = await sGet('kotsulab3:companies');
-      const uR = await sGet('kotsulab3:customers');
-      const sR = await sGet('kotsulab3:sessions');
-      const rR = await sGet('kotsulab3:reservations');
+      const cR = await sGet('kotsulab4:companies');
+      const uR = await sGet('kotsulab4:customers');
+      const pR = await sGet('kotsulab4:practitioners');
+      const sR = await sGet('kotsulab4:sessions');
+      const rR = await sGet('kotsulab4:reservations');
       let comp = cR ? safeParse(cR.value) : null;
       let cust = uR ? safeParse(uR.value) : null;
+      let prac = pR ? safeParse(pR.value) : null;
       let sess = sR ? safeParse(sR.value) : null;
       let resv = rR ? safeParse(rR.value) : null;
-      if (!comp || !sess || !cust) {
+      if (!comp || !sess || !cust || !prac) {
         const seed = buildSeed();
-        comp = seed.companies; cust = seed.customers; sess = seed.sessions; resv = seed.reservations;
-        await sSet('kotsulab3:companies', comp);
-        await sSet('kotsulab3:customers', cust);
-        await sSet('kotsulab3:sessions', sess);
-        await sSet('kotsulab3:reservations', resv);
+        comp = seed.companies; cust = seed.customers; prac = seed.practitioners; sess = seed.sessions; resv = seed.reservations;
+        await sSet('kotsulab4:companies', comp);
+        await sSet('kotsulab4:customers', cust);
+        await sSet('kotsulab4:practitioners', prac);
+        await sSet('kotsulab4:sessions', sess);
+        await sSet('kotsulab4:reservations', resv);
       }
-      setCompanies(comp); setCustomers(cust || []); setSessions(sess); setReservations(resv || []); setReady(true);
+      setCompanies(comp); setCustomers(cust || []); setPractitioners(prac || []); setSessions(sess); setReservations(resv || []); setReady(true);
     })();
   }, []);
 
@@ -1368,15 +1413,19 @@ export default function App() {
   function book({ sessionId, slot, customerId, name, dept, note }) {
     if (reservations.some((r) => r.sessionId === sessionId && r.slot === slot)) { notify('その枠は予約済みです'); return; }
     const next = [...reservations, { id: uid('r'), sessionId, slot, customerId: customerId || null, name: (name || '').trim(), dept: (dept || '').trim(), note: (note || '').trim(), treatment: '', done: false, at: new Date().toISOString() }];
-    setReservations(next); sSet('kotsulab3:reservations', next); notify('予約を受け付けました');
+    setReservations(next); sSet('kotsulab4:reservations', next); notify('予約を受け付けました');
   }
-  function cancelRes(id) { const next = reservations.filter((r) => r.id !== id); setReservations(next); sSet('kotsulab3:reservations', next); notify('予約を取り消しました'); }
-  function addSession(s) { const next = [...sessions, { id: uid('s'), ...s }]; setSessions(next); sSet('kotsulab3:sessions', next); notify('施術日を追加しました'); }
+  function cancelRes(id) { const next = reservations.filter((r) => r.id !== id); setReservations(next); sSet('kotsulab4:reservations', next); notify('予約を取り消しました'); }
+  function addSession(s) {
+    const conflict = practitionerConflict(sessions, s, null);
+    if (conflict) { notify(`${s.practitioner}さんは ${fmtDate(conflict.date)} ${conflict.start}〜${conflict.end} に予定が重複しています`); return false; }
+    const next = [...sessions, { id: uid('s'), ...s }]; setSessions(next); sSet('kotsulab4:sessions', next); notify('施術日を追加しました'); return true;
+  }
   function deleteSession(id) {
-    const next = sessions.filter((s) => s.id !== id); setSessions(next); sSet('kotsulab3:sessions', next);
-    const nr = reservations.filter((r) => r.sessionId !== id); setReservations(nr); sSet('kotsulab3:reservations', nr); notify('施術日を削除しました');
+    const next = sessions.filter((s) => s.id !== id); setSessions(next); sSet('kotsulab4:sessions', next);
+    const nr = reservations.filter((r) => r.sessionId !== id); setReservations(nr); sSet('kotsulab4:reservations', nr); notify('施術日を削除しました');
   }
-  function addCompany(c) { const next = [...companies, { id: uid('c'), code: genCode('CO', companies), coordPass: 'pass', ...c }]; setCompanies(next); sSet('kotsulab3:companies', next); notify('企業を追加しました'); }
+  function addCompany(c) { const next = [...companies, { id: uid('c'), code: genCode('CO', companies), coordPass: 'pass', ...c }]; setCompanies(next); sSet('kotsulab4:companies', next); notify('企業を追加しました'); }
 
   function addCustomer(data) {
     const created = {
@@ -1387,16 +1436,16 @@ export default function App() {
       followUpAt: '', followUpNote: '', followDone: false, createdAt: localDate(), mergedFrom: [],
       disclose: data.disclose || { symptoms: true, tags: true, treatment: false },
     };
-    const next = [...customers, created]; setCustomers(next); sSet('kotsulab3:customers', next); notify('カルテを作成しました');
+    const next = [...customers, created]; setCustomers(next); sSet('kotsulab4:customers', next); notify('カルテを作成しました');
     return created;
   }
   function updateCustomer(id, patch) {
     const next = customers.map((c) => (c.id === id ? { ...c, ...patch } : c));
-    setCustomers(next); sSet('kotsulab3:customers', next);
+    setCustomers(next); sSet('kotsulab4:customers', next);
   }
   function setTreatment(resId, treatment, done) {
     const next = reservations.map((r) => (r.id === resId ? { ...r, treatment: (treatment || '').trim(), done: !!done } : r));
-    setReservations(next); sSet('kotsulab3:reservations', next); notify('施術記録を保存しました');
+    setReservations(next); sSet('kotsulab4:reservations', next); notify('施術記録を保存しました');
   }
   function mergeCustomers(primaryId, secondaryId) {
     const primary = customers.find((c) => c.id === primaryId);
@@ -1409,26 +1458,38 @@ export default function App() {
     const mergedFrom = [...(primary.mergedFrom || []), { code: secondary.code, type: secondary.type, label: secLabel }];
     const follow = (!primary.followUpAt && secondary.followUpAt) ? { followUpAt: secondary.followUpAt, followUpNote: secondary.followUpNote, followDone: secondary.followDone } : {};
     const nc = customers.filter((c) => c.id !== secondaryId).map((c) => (c.id === primaryId ? { ...c, symptoms: mergedSymptoms, tags: mergedTags, mergedFrom, ...follow } : c));
-    setReservations(nr); sSet('kotsulab3:reservations', nr);
-    setCustomers(nc); sSet('kotsulab3:customers', nc);
+    setReservations(nr); sSet('kotsulab4:reservations', nr);
+    setCustomers(nc); sSet('kotsulab4:customers', nc);
     notify('カルテを統合しました');
   }
 
   // ---- generic data management (DataView) ----
-  const dbArr = (t) => (t === 'companies' ? companies : t === 'customers' ? customers : t === 'sessions' ? sessions : reservations);
+  const dbArr = (t) => (t === 'companies' ? companies : t === 'customers' ? customers : t === 'practitioners' ? practitioners : t === 'sessions' ? sessions : reservations);
   function dbSet(t, arr) {
-    if (t === 'companies') { setCompanies(arr); sSet('kotsulab3:companies', arr); }
-    else if (t === 'customers') { setCustomers(arr); sSet('kotsulab3:customers', arr); }
-    else if (t === 'sessions') { setSessions(arr); sSet('kotsulab3:sessions', arr); }
-    else { setReservations(arr); sSet('kotsulab3:reservations', arr); }
+    if (t === 'companies') { setCompanies(arr); sSet('kotsulab4:companies', arr); }
+    else if (t === 'customers') { setCustomers(arr); sSet('kotsulab4:customers', arr); }
+    else if (t === 'practitioners') { setPractitioners(arr); sSet('kotsulab4:practitioners', arr); }
+    else if (t === 'sessions') { setSessions(arr); sSet('kotsulab4:sessions', arr); }
+    else { setReservations(arr); sSet('kotsulab4:reservations', arr); }
   }
-  function dbUpdate(t, id, patch) { dbSet(t, dbArr(t).map((r) => (r.id === id ? { ...r, ...patch } : r))); notify('レコードを更新しました'); }
+  function dbUpdate(t, id, patch) {
+    if (t === 'sessions') {
+      const cand = { ...sessions.find((s) => s.id === id), ...patch };
+      const conflict = practitionerConflict(sessions, cand, id);
+      if (conflict) { notify(`${cand.practitioner}さんの予定が ${fmtDate(conflict.date)} ${conflict.start}〜${conflict.end} と重複します`); return; }
+    }
+    dbSet(t, dbArr(t).map((r) => (r.id === id ? { ...r, ...patch } : r))); notify('レコードを更新しました');
+  }
   function dbDelete(t, id) {
     dbSet(t, dbArr(t).filter((r) => r.id !== id));
-    if (t === 'sessions') { const nr = reservations.filter((r) => r.sessionId !== id); setReservations(nr); sSet('kotsulab3:reservations', nr); }
+    if (t === 'sessions') { const nr = reservations.filter((r) => r.sessionId !== id); setReservations(nr); sSet('kotsulab4:reservations', nr); }
     notify('レコードを削除しました');
   }
   function dbAdd(t, data) {
+    if (t === 'sessions') {
+      const conflict = practitionerConflict(sessions, data, null);
+      if (conflict) { notify(`${data.practitioner}さんの予定が ${fmtDate(conflict.date)} ${conflict.start}〜${conflict.end} と重複します`); return; }
+    }
     const rec = { id: uid(SCHEMAS[t].idPrefix), ...data };
     if (t === 'companies' && !rec.code) rec.code = genCode('CO', companies);
     if (t === 'customers' && !rec.code) rec.code = genCode(rec.type === 'b2b' ? 'B' : 'C', customers);
@@ -1436,10 +1497,11 @@ export default function App() {
   }
   function dbReset() {
     const seed = buildSeed();
-    setCompanies(seed.companies); sSet('kotsulab3:companies', seed.companies);
-    setCustomers(seed.customers); sSet('kotsulab3:customers', seed.customers);
-    setSessions(seed.sessions); sSet('kotsulab3:sessions', seed.sessions);
-    setReservations(seed.reservations); sSet('kotsulab3:reservations', seed.reservations);
+    setCompanies(seed.companies); sSet('kotsulab4:companies', seed.companies);
+    setCustomers(seed.customers); sSet('kotsulab4:customers', seed.customers);
+    setPractitioners(seed.practitioners); sSet('kotsulab4:practitioners', seed.practitioners);
+    setSessions(seed.sessions); sSet('kotsulab4:sessions', seed.sessions);
+    setReservations(seed.reservations); sSet('kotsulab4:reservations', seed.reservations);
     notify('初期データにリセットしました');
   }
 
@@ -1461,7 +1523,7 @@ export default function App() {
         ? <CorporatePortal company={company} customers={customers} sessions={sessions} reservations={reservations} onLogout={logout} notify={notify} />
         : <div className="kl-main"><div className="kl-shell"><div className="kl-card"><div className="kl-empty">企業が見つかりません。<button className="kl-btn kl-btn-ghost kl-btn-sm" style={{ marginTop: 12 }} onClick={logout}>ログアウト</button></div></div></div></div>;
     } else {
-      content = <AdminPortal companies={companies} customers={customers} sessions={sessions} reservations={reservations} notify={notify}
+      content = <AdminPortal companies={companies} customers={customers} practitioners={practitioners} sessions={sessions} reservations={reservations} notify={notify}
         onAddSession={addSession} onCancel={cancelRes} onDeleteSession={deleteSession} onAddCompany={addCompany} onSetTreatment={setTreatment}
         onUpdateCustomer={updateCustomer} onMergeCustomers={mergeCustomers} onAddCustomer={addCustomer}
         dbUpdate={dbUpdate} dbDelete={dbDelete} dbAdd={dbAdd} dbReset={dbReset} onLogout={logout} />;
@@ -1604,6 +1666,7 @@ const CSS = `
 
 .kl-hint{ display:flex; align-items:flex-start; gap:9px; background:var(--amber-mist); border:1px solid #ecd9b9; color:#8a5a1c; border-radius:12px; padding:11px 14px; font-size:13px; line-height:1.55; margin-bottom:16px; }
 .kl-hint.hint-green{ background:var(--green-mist); border-color:var(--green-line); color:var(--green-deep); margin-bottom:0; }
+.kl-hint.hint-rose{ background:var(--rose-mist); border-color:#e6c2c2; color:#a23b3b; margin-bottom:0; }
 .kl-hint b{ font-weight:800; }
 .kl-empty{ text-align:center; padding:30px 16px; color:var(--ink-soft); font-size:13.5px; }
 .kl-empty svg{ opacity:.4; margin-bottom:8px; }
